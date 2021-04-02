@@ -22,6 +22,14 @@ FROM ghcr.io/assignuser/lintr-lib:0.2.0 as lintr-lib
 FROM ghcr.io/assignuser/chktex-alpine:0.1.1 as chktex
 FROM garethr/kubeval:0.15.0 as kubeval
 
+##########################
+# Prepare the rust layer #
+##########################
+FROM rust:1.51.0-alpine as rust
+RUN rustup component add clippy rustfmt \
+    && mkdir /rust \
+    && mv /usr/local/cargo /usr/local/rustup /rust
+
 ##################
 # Get base image #
 ##################
@@ -108,29 +116,15 @@ RUN apk add --no-cache \
     R R-dev R-doc \
     readline-dev \
     ruby ruby-dev ruby-bundler ruby-rdoc \
-    rustup \
     zlib zlib-dev
 
 ##############################
 # Install rustfmt & clippy   #
 ##############################
-ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
-RUN ln -s /usr/bin/rustup-init /usr/bin/rustup \
-    && rustup toolchain install stable-x86_64-unknown-linux-musl \
-    && rustup component add rustfmt --toolchain=stable-x86_64-unknown-linux-musl \
-    && rustup component add clippy --toolchain=stable-x86_64-unknown-linux-musl \
-    && mv /root/.rustup /tmp/.rustup \
-    && ln -s /tmp/.rustup/toolchains/stable-x86_64-unknown-linux-musl/bin/rustfmt /usr/bin/rustfmt \
-    && ln -s /tmp/.rustup/toolchains/stable-x86_64-unknown-linux-musl/bin/rustc /usr/bin/rustc \
-    && ln -s /tmp/.rustup/toolchains/stable-x86_64-unknown-linux-musl/bin/cargo /usr/bin/cargo \
-    && ln -s /tmp/.rustup/toolchains/stable-x86_64-unknown-linux-musl/bin/cargo-clippy /usr/bin/cargo-clippy \
-    && echo '#!/usr/bin/env bash' > /usr/bin/clippy \
-    && echo 'pushd $(dirname $1)' >> /usr/bin/clippy \
-    && echo 'cargo-clippy' >> /usr/bin/clippy \
-    && echo 'rc=$?' >> /usr/bin/clippy \
-    && echo 'popd' >> /usr/bin/clippy \
-    && echo 'exit $rc' >> /usr/bin/clippy \
-    && chmod +x /usr/bin/clippy
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH="/usr/local/cargo/bin:${PATH}"
+COPY --from=rust /rust /usr/local
 
 ########################################
 # Copy dependencies files to container #
@@ -140,6 +134,7 @@ COPY dependencies/* /
 ################################
 # Installs python dependencies #
 ################################
+ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 RUN pip3 install --no-cache-dir pipenv
 # Bug in hadolint thinks pipenv is pip
 # hadolint ignore=DL3042
