@@ -30,6 +30,12 @@ RUN rustup component add clippy rustfmt \
     && mkdir /rust \
     && mv /usr/local/cargo /usr/local/rustup /rust
 
+########################
+# Prepare the go layer #
+########################
+FROM golang:1.16-alpine as golang
+RUN mkdir /golang && mv /usr/local/go /golang
+
 ##################
 # Get base image #
 ##################
@@ -94,7 +100,6 @@ RUN apk add --no-cache \
     file \
     gcc \
     git git-lfs\
-    go \
     gnupg \
     icu-libs \
     jq \
@@ -125,6 +130,13 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:${PATH}"
 COPY --from=rust /rust /usr/local
+
+################
+# Configure Go #
+################
+ENV GOPATH /go
+ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+COPY --from=golang /golang /usr/local
 
 ########################################
 # Copy dependencies files to container #
